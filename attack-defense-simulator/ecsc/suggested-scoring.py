@@ -21,7 +21,10 @@ if "-r" in sys.argv:
 
 teamStatus = {'id'	   			:-1,
 			  'ATTACK' 			: 0,
-			  'DEFENSE'			: 0, 
+			  'base': 0,
+			  'elo': 0,
+			  'dyn':0,
+			  'DEFENSE'			: 0,
 			  'SLA'				: 0,
 			  'service_SLA'		: [0 for i in range(0,15)],
 			  'service_attack'	: {},
@@ -37,7 +40,7 @@ scores = {'scores':[
 		  		 'roundDefenseStatus':{}
 			  	}
 			  	]
-		 } 
+		 }
 
 t1 = time.time()
 
@@ -60,7 +63,7 @@ with open(teamsIdsToCountriesFile, 'r') as f: # open in readonly mode
 teamIdsFile = "data/ecsc-2022_registration_team.json"
 
 numberOfRounds = 170
-	
+
 numberOfTeams = 0
 with open(teamIdsFile, 'r') as f: # open in readonly mode
 	teamsIds = json.loads(f.read())
@@ -142,7 +145,7 @@ for submission in capturedFlags:
 		roundDefenseStatus[serviceId] = numberOfTeams
 		roundDefenseStatus[serviceId] -= 1 # remove current attacked team
 	elif victimScore["service_defense"][serviceId][flagRoundOffset] == 1: # current victim attacked for the first time
-		roundDefenseStatus[serviceId] -= 1 
+		roundDefenseStatus[serviceId] -= 1
 
 ########################################################################
 	if roundId != previousRoundId:
@@ -150,7 +153,7 @@ for submission in capturedFlags:
 			roundDefenseStatus = scores["scores"][i]["roundDefenseStatus"]
 			for j in scores["scores"][i]["teams"]:
 				#SLA
-				scores["scores"][i]["teams"][j]["SLA"] = sum(scores["scores"][i]["teams"][j]["service_SLA"])
+				scores["scores"][i]["teams"][j]["SLA"] = 3 * sum(scores["scores"][i]["teams"][j]["service_SLA"])
 
 				# update all previous defense scores
 				defense = 0
@@ -158,24 +161,25 @@ for submission in capturedFlags:
 				for tmpServiceId in range(1, 15): # services are from 1 to 14
 					if tmpServiceId not in scores["scores"][i]["teams"][j]["service_defense"]:
 						if tmpServiceId not in roundDefenseStatus or roundDefenseStatus[tmpServiceId] == 0:
-							defense += scores["scores"][i]["teams"][j]["service_SLA"][tmpServiceId] * (1 + 1.5)
-							defenseWOSLA += 1 + 1.5
+							defense += scores["scores"][i]["teams"][j]["service_SLA"][tmpServiceId] * (2 + 1)
+							defenseWOSLA += 2 + 1
 						else:
-							defense += scores["scores"][i]["teams"][j]["service_SLA"][tmpServiceId] * (1 + (1.5*(1/roundDefenseStatus[tmpServiceId]))) # max((((0 - 0.5) / (20 * 20)) * (roundDefenseStatus[tmpServiceId] ** 2) + 0.5), 0)) 
-							defenseWOSLA += (1 + (1.5*(1/roundDefenseStatus[tmpServiceId])))
+							defense += scores["scores"][i]["teams"][j]["service_SLA"][tmpServiceId] * (2 + ((1/roundDefenseStatus[tmpServiceId]))) # max((((0 - 0.5) / (20 * 20)) * (roundDefenseStatus[tmpServiceId] ** 2) + 0.5), 0))
+							defenseWOSLA += (2 + ((1/roundDefenseStatus[tmpServiceId])))
 
-				
+
 				scores["scores"][i]["teams"][j]["DEFENSE"] = defense
 				scores["scores"][i]["teams"][j]["DEFENSEWOSLA"] = defenseWOSLA
-		
+
 				# Attack
 				attack = 0
 				for tmpVictimId, tmpVictimFlags in scores["scores"][i]["teams"][j]["service_attack"].items():
 					for tmpServiceId, tmpFlagOffset in tmpVictimFlags.items():
-						tmpCaptureCount = scores["scores"][i]["teams"][tmpVictimId]["service_defense"][tmpServiceId][tmpFlagOffset] 
-						attack += 1 + (0.5 * (1 / tmpCaptureCount)) #max((((0 - 10) / (20 * 20)) * (tmpCaptureCount ** 2) + 10),0) # (0.5 * (1 / tmpCaptureCount))
-						if scores["scores"][i-1]["teams"][tmpVictimId]["Rank"] > scores["scores"][i-1]["teams"][j]["Rank"]: 
-							attack += (1/(scores["scores"][i-1]["teams"][tmpVictimId]["Rank"] - scores["scores"][i-1]["teams"][j]["Rank"])**2)
+						tmpCaptureCount = scores["scores"][i]["teams"][tmpVictimId]["service_defense"][tmpServiceId][tmpFlagOffset]
+						attack += 1 + ((1 / tmpCaptureCount)) #max((((0 - 10) / (20 * 20)) * (tmpCaptureCount ** 2) + 10),0) # (0.5 * (1 / tmpCaptureCount))
+						if scores["scores"][i-1]["teams"][tmpVictimId]["Rank"] > scores["scores"][i-1]["teams"][j]["Rank"]:
+							rank_diff = scores["scores"][i-1]["teams"][tmpVictimId]["Rank"] - scores["scores"][i-1]["teams"][j]["Rank"]
+							attack += (30 + 470 / (1 + (max(0, rank_diff - 1) / 11.92201) ** 1.206069))/500
 						else:
 							attack += 1
 				scores["scores"][i]["teams"][j]["ATTACK"] = attack
@@ -200,17 +204,17 @@ for submission in capturedFlags:
 				lastScore = tmpScore["Total"]
 			tmpScore["Rank"] = rank
 
-		scores["scores"][roundId-1]["teams"] = sortedScores		
-				
+		scores["scores"][roundId-1]["teams"] = sortedScores
+
 		previousRoundId = roundId
 ########################################################################
 
 # This is for the final round
 for i in range(0, numberOfRounds):
-	roundDefenseStatus = scores["scores"][i]["roundDefenseStatus"]	
+	roundDefenseStatus = scores["scores"][i]["roundDefenseStatus"]
 	for j in scores["scores"][i]["teams"]:
 		# SLA
-		scores["scores"][i]["teams"][j]["SLA"] = sum(scores["scores"][i]["teams"][j]["service_SLA"])
+		scores["scores"][i]["teams"][j]["SLA"] = 3 * sum(scores["scores"][i]["teams"][j]["service_SLA"])
 
 		# Defense
 		defense = 0
@@ -218,25 +222,37 @@ for i in range(0, numberOfRounds):
 		for tmpServiceId in range(1, 15): # services are from 1 to 14
 			if tmpServiceId not in scores["scores"][i]["teams"][j]["service_defense"]:
 				if tmpServiceId not in roundDefenseStatus or roundDefenseStatus[tmpServiceId] == 0:
-					defense += scores["scores"][i]["teams"][j]["service_SLA"][tmpServiceId] * (1 + 1.5)
-					defenseWOSLA += 1 + 1.5
+					defense += scores["scores"][i]["teams"][j]["service_SLA"][tmpServiceId] * (2 + 1)
+					defenseWOSLA += 2 + 1
 				else:
-					defense += scores["scores"][i]["teams"][j]["service_SLA"][tmpServiceId] * (1 + (1.5*(1/roundDefenseStatus[tmpServiceId]))) #max((((0 - 0.5) / (20 * 20)) * (roundDefenseStatus[tmpServiceId] ** 2) + 0.5), 0))
-					defenseWOSLA += (1 + (1.5*(1/roundDefenseStatus[tmpServiceId])))
+					defense += scores["scores"][i]["teams"][j]["service_SLA"][tmpServiceId] * (2 + (1*(1/roundDefenseStatus[tmpServiceId]))) #max((((0 - 0.5) / (20 * 20)) * (roundDefenseStatus[tmpServiceId] ** 2) + 0.5), 0))
+					defenseWOSLA += (2 + (1*(1/roundDefenseStatus[tmpServiceId])))
 
 		scores["scores"][i]["teams"][j]["DEFENSE"] = defense
 		scores["scores"][i]["teams"][j]["DEFENSEWOSLA"] = defenseWOSLA
 
 		# Attack
 		attack = 0
+		elo = 0
+		dyn = 0
+		base = 0
 		for tmpVictimId, tmpVictimFlags in scores["scores"][i]["teams"][j]["service_attack"].items():
 			for tmpServiceId, tmpFlagOffset in tmpVictimFlags.items():
-				tmpCaptureCount = scores["scores"][i]["teams"][tmpVictimId]["service_defense"][tmpServiceId][tmpFlagOffset] 
-				attack += 1 + (0.5 * (1 / tmpCaptureCount)) #max((((0 - 10) / (20 * 20)) * (tmpCaptureCount ** 2) + 10),0) # (0.5 * (1 / tmpCaptureCount))
-				if scores["scores"][i-1]["teams"][tmpVictimId]["Rank"] > scores["scores"][i-1]["teams"][j]["Rank"]: 
-					attack += (1/(scores["scores"][i-1]["teams"][tmpVictimId]["Rank"] - scores["scores"][i-1]["teams"][j]["Rank"])**2)
+				tmpCaptureCount = scores["scores"][i]["teams"][tmpVictimId]["service_defense"][tmpServiceId][tmpFlagOffset]
+				attack += 1 + ((1 / tmpCaptureCount)) #max((((0 - 10) / (20 * 20)) * (tmpCaptureCount ** 2) + 10),0) # (0.5 * (1 / tmpCaptureCount))
+				dyn += (1/tmpCaptureCount)
+				base +=1
+				if scores["scores"][i-1]["teams"][tmpVictimId]["Rank"] > scores["scores"][i-1]["teams"][j]["Rank"]:
+					rank_diff = scores["scores"][i-1]["teams"][tmpVictimId]["Rank"] - scores["scores"][i-1]["teams"][j]["Rank"]
+					attack += (30 + 470 / (1 + (max(0, rank_diff - 1) / 11.92201) ** 1.206069))/500
+					elo += (30 + 470 / (1 + (max(0, rank_diff - 1) / 11.92201) ** 1.206069))/500
 				else:
 					attack += 1
+					elo += 1
+		scores["scores"][i]["teams"][j]["elo"] = elo
+		scores["scores"][i]["teams"][j]["dyn"] = dyn
+		scores["scores"][i]["teams"][j]["base"] = base
+		
 		scores["scores"][i]["teams"][j]["ATTACK"] = attack
 
 		if i > 0:
@@ -245,6 +261,10 @@ for i in range(0, numberOfRounds):
 			scores["scores"][i]["teams"][j]["SLA"] +=  scores["scores"][i-1]["teams"][j]["SLA"]
 			scores["scores"][i]["teams"][j]["ATTACK"] +=  scores["scores"][i-1]["teams"][j]["ATTACK"]
 			scores["scores"][i]["teams"][j]["Total"] =  scores["scores"][i]["teams"][j]["ATTACK"] + scores["scores"][i]["teams"][j]["DEFENSE"] + scores["scores"][i]["teams"][j]["SLA"]
+			scores["scores"][i]["teams"][j]["elo"] += scores["scores"][i-1]["teams"][j]["elo"]
+			scores["scores"][i]["teams"][j]["dyn"] += scores["scores"][i-1]["teams"][j]["dyn"]
+			scores["scores"][i]["teams"][j]["base"] += scores["scores"][i-1]["teams"][j]["base"]
+		
 
 t4 = time.time()
 if print_info:
@@ -255,16 +275,18 @@ last_tick_scores = scores["scores"][numberOfRounds - 1]["teams"]
 sortedIds = sorted(last_tick_scores.keys(), key=lambda x: last_tick_scores[x]["Total"], reverse=True)
 
 if print_ranks_only:
-	print("CyberChallengeIt")
+	print("Suggested Scoring")
 	for i in range(0, len(sortedIds)):
-		print("{:3d}/{}".format(sortedIds[i], teamsIdsToCountries[sortedIds[i]]))
+		print("{}".format(sortedIds[i]))
 else:
-	print("Proportional scoring")
-	print("TEAM (ID/Country) | SLA | ATTACK | DEFENSE | DEFENSE W/O SLA | TOTAL")
+	print("Suggested scoring")
+	print("TEAM (ID) | SLA | ATTACK | base | elo | dyn")
 	for i in range(0, len(sortedIds)):
-		print("{}/{} | {} | {} | {} | {} | {}".format(sortedIds[i], teamsIdsToCountries[sortedIds[i]],
+		print("{} | {} | {} | {} | {} | {} | {}".format(sortedIds[i],
 			last_tick_scores[sortedIds[i]]["SLA"],
 			round(last_tick_scores[sortedIds[i]]["ATTACK"], 2),
-			round(last_tick_scores[sortedIds[i]]["DEFENSE"], 2),
-			round(last_tick_scores[sortedIds[i]]["DEFENSEWOSLA"],2),
+			round(last_tick_scores[sortedIds[i]]["base"], 2),
+			round(last_tick_scores[sortedIds[i]]["elo"], 2),
+			round(last_tick_scores[sortedIds[i]]["dyn"], 2),
+
 			round(last_tick_scores[sortedIds[i]]["Total"], 2)))
