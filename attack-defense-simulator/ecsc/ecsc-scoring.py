@@ -93,7 +93,8 @@ with open(SLAFile, 'r') as f: # open in readonly mode
 
 		scores["scores"][gameRoundId]["tickId"] = gameRoundId
 		scores["scores"][gameRoundId]["teams"][teamId]["id"] = teamId
-
+		
+		# SLAs for flag stores from same service group is grouped 
 		scores["scores"][gameRoundId]["teams"][teamId]["service_SLA"][serviceToServiceGroupDict[serviceId]].append(status)
 #################################################################
 
@@ -159,13 +160,13 @@ for i in range(0, len(scores["scores"])):
 		# SLA
 		tmpTeamSLAs = scores["scores"][i]["teams"][j]["service_SLA"]
 		for tmpServiceGroup in tmpTeamSLAs:
-			if len(tmpServiceGroup) != 2:
+			if len(tmpServiceGroup) != 2: # extra check to make sure every service group has two flag stores (as per ecsc 2022)
 				continue
-			if 2 in tmpServiceGroup or 3 in tmpServiceGroup or 1 in tmpServiceGroup:
+			if 2 in tmpServiceGroup or 3 in tmpServiceGroup or 1 in tmpServiceGroup: # if any flag store is down => no score
 				scores["scores"][i]["teams"][j]["SLA"] += 0
-			elif 4 in tmpServiceGroup:
+			elif 4 in tmpServiceGroup: # if any flag store is recovering half score
 				scores["scores"][i]["teams"][j]["SLA"] += 0.5 * ((tmpServiceGroup.count(0)  + tmpServiceGroup.count(4)) * (numberOfTeams ** 0.5))
-			elif 0 in tmpServiceGroup:
+			elif 0 in tmpServiceGroup: # all up
 				scores["scores"][i]["teams"][j]["SLA"] += tmpServiceGroup.count(0) * (numberOfTeams ** 0.5) 
 
 
